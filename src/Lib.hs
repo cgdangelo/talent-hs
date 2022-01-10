@@ -46,8 +46,8 @@ data DirectoryEntry = DirectoryEntry
     flags :: Int32,
     cdTrack :: Int32,
     trackTime :: Float,
-    frameCount :: Int32,
-    offset :: Int32,
+    framesCount :: Int32,
+    framesOffset :: Int32,
     fileLength :: Int32,
     frames :: [Frame]
   }
@@ -229,8 +229,8 @@ getDirectoryEntry = do
   flags <- B.getInt32le
   cdTrack <- B.getInt32le
   trackTime <- B.getFloatle
-  frameCount <- B.getInt32le
-  offset <- B.getInt32le
+  framesCount <- B.getInt32le
+  framesOffset <- B.getInt32le
   fileLength <- B.getInt32le
   let frames = []
   -- frames <- getFrames
