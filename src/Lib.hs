@@ -23,7 +23,7 @@ getPaddedLazyByteStringNul :: Int64 -> B.Get L.ByteString
 getPaddedLazyByteStringNul = fmap (L.takeWhile (/= 0)) . B.getLazyByteString
 
 data Demo = Demo
-  { header :: DemoHeader,
+  { demoHeader :: DemoHeader,
     directory :: Directory
   }
   deriving (Show)
@@ -59,7 +59,19 @@ data DirectoryEntryType
   | UnknownDirectoryType
   deriving (Show)
 
-data Frame
+data Frame = Frame
+  { frameHeader :: FrameHeader,
+    frameData :: FrameData
+  }
+  deriving (Show)
+
+data FrameHeader = FrameHeader
+  { time :: Float,
+    frame :: Int32
+  }
+  deriving (Show)
+
+data FrameData
   = DemoStart
   | ConsoleCommand L.ByteString
   | ClientData
@@ -197,7 +209,7 @@ data MoveVars = MoveVars
 
 getDemo :: B.Get Demo
 getDemo = do
-  header <- getDemoHeader
+  demoHeader <- getDemoHeader
   directory <- getDirectory
   return Demo {..}
 
@@ -251,7 +263,7 @@ getFrames = do
     then return []
     else do
       frame <- getFrame
-      case frame of
+      case frameData frame of
         NextSection -> pure []
         _ -> do
           frames <- getFrames
@@ -259,8 +271,9 @@ getFrames = do
 
 getFrame :: B.Get Frame
 getFrame = do
-  frameType <- B.getInt32le
-  case frameType of
+  frameType <- B.getInt8
+  frameHeader <- getFrameHeader
+  frameData <- case frameType of
     2 -> pure DemoStart
     3 -> getConsoleCommand
     4 -> getClientData
@@ -270,6 +283,9 @@ getFrame = do
     8 -> getSound
     9 -> getDemoBuffer
     _ -> pure UnknownFrameType
+  return Frame {..}
+  where
+    getFrameHeader = FrameHeader <$> B.getFloatle <*> B.getInt32le
 
 getConsoleCommand = ConsoleCommand <$> getPaddedLazyByteStringNul 64
 
