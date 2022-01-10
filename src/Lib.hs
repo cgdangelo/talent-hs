@@ -19,6 +19,12 @@ pointBy f = Point <$> f <*> f <*> f
 
 pointFloat = pointBy B.getFloatle
 
+getPaddedLazyByteStringNul :: Int -> B.Get L.ByteString
+getPaddedLazyByteStringNul n = do
+  s <- B.getLazyByteStringNul
+  B.skip $ n - fromIntegral (L.length s + 1)
+  pure s
+
 data Demo = Demo
   { header :: DemoHeader,
     directory :: Directory
@@ -200,11 +206,11 @@ getDemo = do
 
 getDemoHeader :: B.Get DemoHeader
 getDemoHeader = do
-  magic <- B.getLazyByteString 8
+  magic <- getPaddedLazyByteStringNul 8
   demoProtocol <- B.getInt32le
   networkProtocol <- B.getInt32le
-  mapName <- B.getLazyByteString 260
-  gameDirectory <- B.getLazyByteString 260
+  mapName <- getPaddedLazyByteStringNul 260
+  gameDirectory <- getPaddedLazyByteStringNul 260
   mapChecksum <- B.getInt32le
   return DemoHeader {..}
 
@@ -222,7 +228,7 @@ getDirectoryEntries = flip replicateM getDirectoryEntry
 getDirectoryEntry :: B.Get DirectoryEntry
 getDirectoryEntry = do
   entryType <- getDirectoryEntryType
-  description <- B.getLazyByteString 64
+  description <- getPaddedLazyByteStringNul 64
   flags <- B.getInt32le
   cdTrack <- B.getInt32le
   trackTime <- B.getFloatle
@@ -268,7 +274,7 @@ getFrame = do
     9 -> getDemoBuffer
     _ -> pure UnknownFrameType
 
-getConsoleCommand = ConsoleCommand <$> B.getLazyByteString 64
+getConsoleCommand = ConsoleCommand <$> getPaddedLazyByteStringNul 64
 
 getClientData = do
   origin <- pointFloat
@@ -416,7 +422,7 @@ getMoveVars = do
   zMax <- B.getFloatle
   waveHeight <- B.getFloatle
   footsteps <- B.getInt32le
-  skyName <- B.getLazyByteString 32
+  skyName <- getPaddedLazyByteStringNul 32
   rollAngle <- B.getFloatle
   rollSpeed <- B.getFloatle
   skyColor <- getSkyColor
