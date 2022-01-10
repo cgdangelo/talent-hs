@@ -275,6 +275,8 @@ getFrame = do
   frameType <- B.getInt8
   frameHeader <- getFrameHeader
   frameData <- case frameType of
+    0 -> getNetworkMessages
+    1 -> getNetworkMessages
     2 -> pure DemoStart
     3 -> getConsoleCommand
     4 -> getClientData
@@ -405,15 +407,15 @@ getUserCmd :: B.Get UserCmd
 getUserCmd = do
   lerpMs <- B.getInt16le
   ms <- B.getInt8
-  viewAngles <- pointFloat
+  viewAngles <- B.skip 1 *> pointFloat
   forwardMove <- B.getFloatle
   sideMove <- B.getFloatle
   upMove <- B.getFloatle
   lightLevel <- B.getInt8
-  buttons <- B.getInt16le
+  buttons <- B.skip 1 *> B.getInt16le
   impulse <- B.getInt8
   weaponSelect <- B.getInt8
-  impactIndex <- B.getInt32le
+  impactIndex <- B.skip 2 *> B.getInt32le
   impactPosition <- pointFloat
   return UserCmd {..}
 
