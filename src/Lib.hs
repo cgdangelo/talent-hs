@@ -9,8 +9,8 @@ import Control.Monad (replicateM)
 import Data.Binary
 import qualified Data.Binary.Get as B
 import qualified Data.ByteString.Lazy as L
+import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Word
-import GHC.Int (Int16, Int32, Int8)
 
 data Point a = Point a a a deriving (Show)
 
@@ -19,11 +19,8 @@ pointBy f = Point <$> f <*> f <*> f
 
 pointFloat = pointBy B.getFloatle
 
-getPaddedLazyByteStringNul :: Int -> B.Get L.ByteString
-getPaddedLazyByteStringNul n = do
-  s <- B.getLazyByteStringNul
-  B.skip $ n - fromIntegral (L.length s + 1)
-  pure s
+getPaddedLazyByteStringNul :: Int64 -> B.Get L.ByteString
+getPaddedLazyByteStringNul = fmap (L.takeWhile (/= 0)) . B.getLazyByteString
 
 data Demo = Demo
   { header :: DemoHeader,
