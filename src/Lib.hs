@@ -211,8 +211,17 @@ data MoveVars = MoveVars
 getDemo :: B.Get Demo
 getDemo = do
   demoHeader <- getDemoHeader
-  directory <- getDirectory $ directoryOffset demoHeader
+  directory <- B.lookAhead (getDirectory $ directoryOffset demoHeader) >>= addFramesToDirectoryEntries
   return Demo {..}
+  where
+    addFramesToDirectoryEntries = mapM addFramesToDirectoryEntry
+
+    addFramesToDirectoryEntry :: DirectoryEntry -> B.Get DirectoryEntry
+    addFramesToDirectoryEntry de = do
+      currentPosition <- fromIntegral <$> B.bytesRead
+      B.skip $ fromIntegral (framesOffset de) - currentPosition
+      directoryEntryFrames <- getFrames
+      pure de {frames = directoryEntryFrames}
 
 getDemoHeader :: B.Get DemoHeader
 getDemoHeader = do
