@@ -9,8 +9,10 @@ import Control.Monad (replicateM)
 import Data.Binary
 import qualified Data.Binary.Get as B
 import qualified Data.ByteString.Lazy as L
+import Data.Functor (($>))
 import Data.Int (Int16, Int32, Int64, Int8)
 import Data.Word
+import Debug.Trace
 
 data Point a = Point a a a deriving (Show)
 
@@ -108,7 +110,8 @@ data FrameData
         moveVars :: MoveVars,
         view :: Point Float,
         viewModel :: Int32,
-        messagesLength :: Int32
+        messagesLength :: Int32,
+        messages :: [NetworkMessage]
       }
   | UnknownFrameType
   deriving (Show)
@@ -206,6 +209,83 @@ data MoveVars = MoveVars
     skyColor :: (Int32, Int32, Int32),
     skyVec :: Point Float
   }
+  deriving (Show)
+
+data NetworkMessage
+  = SVC_BAD
+  | SVC_NOP
+  | SVC_DISCONNECT L.ByteString
+  | SVC_EVENT
+  | SVC_VERSION
+  | SVC_SETVIEW
+  | SVC_SOUND
+  | SVC_TIME
+  | SVC_PRINT L.ByteString
+  | SVC_STUFFTEXT
+  | SVC_SETANGLE
+  | SVC_SERVERINFO
+      { protocol :: Int32,
+        spawnCount :: Int32,
+        mapChecksum :: Int32,
+        clientDllHash :: [Word8],
+        maxPlayers :: Int8,
+        playerIndex :: Int8,
+        isDeathmatch :: Int8,
+        gameDir :: L.ByteString,
+        hostname :: L.ByteString,
+        mapFileName :: L.ByteString,
+        mapCycle :: L.ByteString
+      }
+  | SVC_LIGHTSTYLE
+  | SVC_UPDATEUSERINFO
+  | SVC_DELTADESCRIPTION
+  | SVC_CLIENTDATA
+  | SVC_STOPSOUND
+  | SVC_PINGS
+  | SVC_PARTICLE
+  | SVC_DAMAGE
+  | SVC_SPAWNSTATIC
+  | SVC_EVENT_RELIABLE
+  | SVC_SPAWNBASELINE
+  | SVC_TEMPENTITY
+  | SVC_SETPAUSE
+  | SVC_SIGNONNUM
+  | SVC_CENTERPRINT
+  | SVC_KILLEDMONSTER
+  | SVC_FOUNDSECRET
+  | SVC_SPAWNSTATICSOUND
+  | SVC_INTERMISSION
+  | SVC_FINALE
+  | SVC_CDTRACK
+  | SVC_RESTORE
+  | SVC_CUTSCENE
+  | SVC_WEAPONANIM
+  | SVC_DECALNAME
+  | SVC_ROOMTYPE
+  | SVC_ADDANGLE
+  | SVC_NEWUSERMSG
+  | SVC_PACKETENTITIES
+  | SVC_DELTAPACKETENTITIES
+  | SVC_CHOKE
+  | SVC_RESOURCELIST
+  | SVC_NEWMOVEVARS
+  | SVC_RESOURCEREQUEST
+  | SVC_CUSTOMIZATION
+  | SVC_CROSSHAIRANGLE
+  | SVC_SOUNDFADE
+  | SVC_FILETXFERFAILED
+  | SVC_HLTV
+  | SVC_DIRECTOR
+  | SVC_VOICEINIT
+  | SVC_VOICEDATA
+  | SVC_SENDEXTRAINFO
+      { fallbackDir :: L.ByteString,
+        canCheat :: Int8
+      }
+  | SVC_TIMESCALE
+  | SVC_RESOURCELOCATION
+  | SVC_SENDCVARVALUE
+  | SVC_SENDCVARVALUE2
   deriving (Show)
 
 getDemo :: B.Get Demo
@@ -365,7 +445,8 @@ getNetworkMessages = do
   reliableSequence <- B.getInt32le
   lastReliableSequence <- B.getInt32le
   messagesLength <- B.getInt32le
-  B.skip $ fromIntegral messagesLength
+  -- B.skip $ fromIntegral messagesLength
+  messages <- getNetworkMessagesInPacket messagesLength
   return NetworkMessages {..}
 
 getRefParams :: B.Get RefParams
@@ -459,6 +540,100 @@ getMoveVars = do
         <$> B.getInt32le
         <*> B.getInt32le
         <*> B.getInt32le
+
+getNetworkMessagesInPacket :: Int32 -> B.Get [NetworkMessage]
+getNetworkMessagesInPacket messagesLength = do
+  currentPosition <- fromIntegral <$> B.bytesRead
+  let messagesEndAt = currentPosition + messagesLength
+  getNetworkMessagesInPacket' messagesEndAt
+  where
+    getNetworkMessagesInPacket' :: Int32 -> B.Get [NetworkMessage]
+    getNetworkMessagesInPacket' endPosition = do
+      currentPosition <- fromIntegral <$> B.bytesRead
+
+      if currentPosition == endPosition
+        then return []
+        else do
+          messageType <- B.getInt8
+          message <- case messageType of
+            0 -> pure SVC_BAD
+            1 -> pure SVC_NOP
+            2 -> SVC_DISCONNECT <$> B.getLazyByteStringNul
+            3 -> pure SVC_EVENT
+            4 -> pure SVC_VERSION
+            5 -> pure SVC_SETVIEW
+            6 -> pure SVC_SOUND
+            7 -> pure SVC_TIME
+            8 -> SVC_PRINT <$> B.getLazyByteStringNul
+            9 -> pure SVC_STUFFTEXT
+            10 -> pure SVC_SETANGLE
+            11 -> do
+              protocol <- B.getInt32le
+              spawnCount <- B.getInt32le
+              mapChecksum <- B.getInt32le
+              clientDllHash <- B.skip 16 $> []
+              maxPlayers <- B.getInt8
+              playerIndex <- B.getInt8
+              isDeathmatch <- B.getInt8
+              gameDir <- B.getLazyByteStringNul
+              hostname <- B.getLazyByteStringNul
+              mapFileName <- B.getLazyByteStringNul
+              mapCycle <- B.getLazyByteStringNul
+              B.skip 1
+              return SVC_SERVERINFO {..}
+            12 -> pure SVC_LIGHTSTYLE
+            13 -> pure SVC_UPDATEUSERINFO
+            14 -> pure SVC_DELTADESCRIPTION
+            15 -> pure SVC_CLIENTDATA
+            16 -> pure SVC_STOPSOUND
+            17 -> pure SVC_PINGS
+            18 -> pure SVC_PARTICLE
+            19 -> pure SVC_DAMAGE
+            20 -> pure SVC_SPAWNSTATIC
+            21 -> pure SVC_EVENT_RELIABLE
+            22 -> pure SVC_SPAWNBASELINE
+            23 -> pure SVC_TEMPENTITY
+            24 -> pure SVC_SETPAUSE
+            25 -> pure SVC_SIGNONNUM
+            26 -> pure SVC_CENTERPRINT
+            27 -> pure SVC_KILLEDMONSTER
+            28 -> pure SVC_FOUNDSECRET
+            29 -> pure SVC_SPAWNSTATICSOUND
+            30 -> pure SVC_INTERMISSION
+            31 -> pure SVC_FINALE
+            32 -> pure SVC_CDTRACK
+            33 -> pure SVC_RESTORE
+            34 -> pure SVC_CUTSCENE
+            35 -> pure SVC_WEAPONANIM
+            36 -> pure SVC_DECALNAME
+            37 -> pure SVC_ROOMTYPE
+            38 -> pure SVC_ADDANGLE
+            39 -> pure SVC_NEWUSERMSG
+            40 -> pure SVC_PACKETENTITIES
+            41 -> pure SVC_DELTAPACKETENTITIES
+            42 -> pure SVC_CHOKE
+            43 -> pure SVC_RESOURCELIST
+            44 -> pure SVC_NEWMOVEVARS
+            45 -> pure SVC_RESOURCEREQUEST
+            46 -> pure SVC_CUSTOMIZATION
+            47 -> pure SVC_CROSSHAIRANGLE
+            48 -> pure SVC_SOUNDFADE
+            49 -> pure SVC_FILETXFERFAILED
+            50 -> pure SVC_HLTV
+            51 -> pure SVC_DIRECTOR
+            52 -> pure SVC_VOICEINIT
+            53 -> pure SVC_VOICEDATA
+            54 -> SVC_SENDEXTRAINFO <$> B.getLazyByteStringNul <*> B.getInt8
+            55 -> pure SVC_TIMESCALE
+            56 -> pure SVC_RESOURCELOCATION
+            57 -> pure SVC_SENDCVARVALUE
+            58 -> pure SVC_SENDCVARVALUE2
+            _ -> pure SVC_BAD
+
+          traceM ("message: " ++ show message)
+
+          rest <- getNetworkMessagesInPacket' endPosition
+          return (message : rest)
 
 showDemo :: IO ()
 showDemo = L.readFile "/tmp/demo.dem" >>= print . B.runGet getDemo
