@@ -217,7 +217,7 @@ getDirectory = do
   getDirectoryEntries $ fromIntegral totalEntries
 
 getDirectoryEntries :: Int -> B.Get [DirectoryEntry]
-getDirectoryEntries totalEntries = replicateM totalEntries getDirectoryEntry
+getDirectoryEntries = flip replicateM getDirectoryEntry
 
 getDirectoryEntry :: B.Get DirectoryEntry
 getDirectoryEntry = do
