@@ -12,13 +12,9 @@ import qualified Data.ByteString.Lazy as L
 import Data.Word
 import GHC.Int (Int16, Int32, Int8)
 
-data Point a = Point a a a
+data Point a = Point a a a deriving (Show)
 
-instance Show a => Show (Point a) where
-  show (Point x y z) =
-    "Point (" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ ")"
-
-pointBy :: Num a => B.Get a -> B.Get (Point a)
+pointBy :: B.Get a -> B.Get (Point a)
 pointBy f = Point <$> f <*> f <*> f
 
 pointFloat = pointBy B.getFloatle
