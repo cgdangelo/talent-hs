@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Delta
       Lib
   other-modules:
       Paths_talent_hs
