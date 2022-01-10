@@ -34,7 +34,8 @@ data DemoHeader = DemoHeader
     networkProtocol :: Int32,
     mapName :: L.ByteString,
     gameDirectory :: L.ByteString,
-    mapChecksum :: Int32
+    mapChecksum :: Int32,
+    directoryOffset :: Int32
   }
   deriving (Show)
 
@@ -210,7 +211,7 @@ data MoveVars = MoveVars
 getDemo :: B.Get Demo
 getDemo = do
   demoHeader <- getDemoHeader
-  directory <- getDirectory
+  directory <- getDirectory $ directoryOffset demoHeader
   return Demo {..}
 
 getDemoHeader :: B.Get DemoHeader
@@ -221,11 +222,11 @@ getDemoHeader = do
   mapName <- getPaddedLazyByteStringNul 260
   gameDirectory <- getPaddedLazyByteStringNul 260
   mapChecksum <- B.getInt32le
+  directoryOffset <- B.getInt32le
   return DemoHeader {..}
 
-getDirectory :: B.Get Directory
-getDirectory = do
-  directoryOffset <- B.getInt32le
+getDirectory :: Int32 -> B.Get Directory
+getDirectory directoryOffset = do
   currentPosition <- B.bytesRead
   B.skip $ fromIntegral $ directoryOffset - fromIntegral currentPosition
   totalEntries <- B.getInt32le
